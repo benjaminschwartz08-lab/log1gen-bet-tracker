@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 type BetResult = "Pending" | "Win" | "Loss" | "Void";
 
@@ -99,6 +101,8 @@ function formatPercent(value: number) {
 }
 
 export default function Home() {
+    const router = useRouter();
+  const supabase = createClient();
   const [bets, setBets] = useState<Bet[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -286,7 +290,11 @@ export default function Home() {
       setBets((current) => current.filter((bet) => bet.id !== id));
     }
   }
-
+  async function signOut() {
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
   return (
     <main className="min-h-screen bg-[#07090d] text-white">
       <div className="flex min-h-screen">
@@ -299,29 +307,29 @@ export default function Home() {
           </h1>
 
           <nav className="space-y-2">
-            {[
-              "Dashboard",
-              "Bet Tracker",
-              "EV Tools",
-              "Tennis Lab",
-              "MLB Lab",
-              "NBA Props",
-              "CLV Engine",
-              "Analytics",
-              "Settings",
-            ].map((item, index) => (
-              <button
-                key={item}
-                className={`w-full rounded-lg px-4 py-3 text-left text-sm transition ${
-                  index === 0
-                    ? "bg-emerald-500 text-black"
-                    : "text-zinc-400 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
-          </nav>
+  {[
+    "Dashboard",
+    "Bet Tracker",
+    "EV Tools",
+    "Tennis Lab",
+    "MLB Lab",
+    "NBA Props",
+    "CLV Engine",
+    "Analytics",
+    "Settings",
+  ].map((item, index) => (
+    <button
+      key={item}
+      className={`w-full rounded-lg px-4 py-3 text-left text-sm transition ${
+        index === 0
+          ? "bg-emerald-500 text-black"
+          : "text-zinc-400 hover:bg-white/5 hover:text-white"
+      }`}
+    >
+      {item}
+    </button>
+  ))}
+</nav>
         </aside>
 
         <section className="min-w-0 flex-1 p-5 md:p-8">
@@ -331,12 +339,21 @@ export default function Home() {
               <h2 className="text-3xl font-bold">Dashboard</h2>
             </div>
 
-            <button
-              onClick={() => setShowForm(true)}
-              className="rounded-lg bg-emerald-500 px-5 py-3 font-semibold text-black transition hover:bg-emerald-400"
-            >
-              + Add Bet
-            </button>
+            <div className="flex gap-3">
+  <button
+    onClick={signOut}
+    className="rounded-lg border border-white/10 px-5 py-3 font-medium text-zinc-300 transition hover:bg-white/5"
+  >
+    Log ud
+  </button>
+
+  <button
+    onClick={() => setShowForm(true)}
+    className="rounded-lg bg-emerald-500 px-5 py-3 font-semibold text-black transition hover:bg-emerald-400"
+  >
+    + Add Bet
+  </button>
+</div>
           </header>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
