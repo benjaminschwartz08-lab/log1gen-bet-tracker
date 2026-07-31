@@ -327,7 +327,7 @@ export default function Home() {
       }`}
     >
       {item}
-    </button
+    </button>
   ))}
 </nav>
         </aside>
