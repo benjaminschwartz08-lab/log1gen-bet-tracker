@@ -30,42 +30,6 @@ type BetForm = {
 
 const STARTING_BANKROLL = 10000;
 
-const demoBets: Bet[] = [
-  {
-    id: "demo-1",
-    sport: "Tennis",
-    event: "Sinner vs. Alcaraz",
-    market: "Over 22.5 games",
-    bookmaker: "Bet365",
-    odds: 1.95,
-    stake: 500,
-    result: "Win",
-    createdAt: "2026-07-25",
-  },
-  {
-    id: "demo-2",
-    sport: "NBA",
-    event: "Lakers vs. Celtics",
-    market: "Player PRA",
-    bookmaker: "Unibet",
-    odds: 2.1,
-    stake: 250,
-    result: "Loss",
-    createdAt: "2026-07-26",
-  },
-  {
-    id: "demo-3",
-    sport: "MLB",
-    event: "Yankees vs. Red Sox",
-    market: "NRFI",
-    bookmaker: "Bet365",
-    odds: 1.82,
-    stake: 300,
-    result: "Pending",
-    createdAt: "2026-07-27",
-  },
-];
-
 const emptyForm: BetForm = {
   sport: "Tennis",
   event: "",
@@ -101,36 +65,72 @@ function formatPercent(value: number) {
 }
 
 export default function Home() {
-    const router = useRouter();
-  const supabase = createClient();
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [bets, setBets] = useState<Bet[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoadingBets, setIsLoadingBets] = useState(true);
+  const [databaseError, setDatabaseError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<BetForm>(emptyForm);
   const [search, setSearch] = useState("");
   const [sportFilter, setSportFilter] = useState("All");
 
   useEffect(() => {
-    const savedBets = localStorage.getItem("log1gen-bets");
+  let cancelled = false;
 
-    if (savedBets) {
-      try {
-        setBets(JSON.parse(savedBets));
-      } catch {
-        setBets(demoBets);
-      }
+  async function loadBets() {
+    setIsLoadingBets(true);
+    setDatabaseError("");
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setIsLoadingBets(false);
+      router.replace("/login");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("bets")
+      .select(
+        "id, sport, event, market, bookmaker, odds, stake, result, created_at"
+      )
+      .order("created_at", { ascending: false });
+
+    if (cancelled) return;
+
+    if (error) {
+      console.error(error);
+      setDatabaseError(`Kunne ikke hente bets: ${error.message}`);
+      setBets([]);
     } else {
-      setBets(demoBets);
+      const databaseBets: Bet[] = (data ?? []).map((bet) => ({
+        id: bet.id,
+        sport: bet.sport,
+        event: bet.event,
+        market: bet.market,
+        bookmaker: bet.bookmaker,
+        odds: Number(bet.odds),
+        stake: Number(bet.stake),
+        result: bet.result as BetResult,
+        createdAt: bet.created_at,
+      }));
+
+      setBets(databaseBets);
     }
 
-    setIsLoaded(true);
-  }, []);
+    setIsLoadingBets(false);
+  }
 
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem("log1gen-bets", JSON.stringify(bets));
-    }
-  }, [bets, isLoaded]);
+  loadBets();
+
+  return () => {
+    cancelled = true;
+  };
+}, [router, supabase]);
 
   const settledBets = bets.filter(
     (bet) => bet.result === "Win" || bet.result === "Loss"
@@ -235,7 +235,7 @@ export default function Home() {
     }));
   }
 
-  function addBet(event: FormEvent<HTMLFormElement>) {
+  async function addBet(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const odds = Number(form.odds.replace(",", "."));
@@ -253,16 +253,49 @@ export default function Home() {
       return;
     }
 
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      router.replace("/login");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("bets")
+      .insert({
+        user_id: user.id,
+        sport: form.sport,
+        event: form.event.trim(),
+        market: form.market.trim(),
+        bookmaker: form.bookmaker.trim() || "Ukendt",
+        odds,
+        stake,
+        result: form.result,
+      })
+      .select(
+        "id, sport, event, market, bookmaker, odds, stake, result, created_at"
+      )
+      .single();
+
+    if (error) {
+      console.error(error);
+      alert(`Bet kunne ikke gemmes: ${error.message}`);
+      return;
+    }
+
     const newBet: Bet = {
-      id: crypto.randomUUID(),
-      sport: form.sport,
-      event: form.event.trim(),
-      market: form.market.trim(),
-      bookmaker: form.bookmaker.trim() || "Ukendt",
-      odds,
-      stake,
-      result: form.result,
-      createdAt: new Date().toISOString().slice(0, 10),
+      id: data.id,
+      sport: data.sport,
+      event: data.event,
+      market: data.market,
+      bookmaker: data.bookmaker,
+      odds: Number(data.odds),
+      stake: Number(data.stake),
+      result: data.result as BetResult,
+      createdAt: data.created_at,
     };
 
     setBets((current) => [newBet, ...current]);
@@ -270,7 +303,9 @@ export default function Home() {
     setShowForm(false);
   }
 
-  function updateResult(id: string, result: BetResult) {
+  async function updateResult(id: string, result: BetResult) {
+    const previousBets = bets;
+
     setBets((current) =>
       current.map((bet) =>
         bet.id === id
@@ -281,20 +316,42 @@ export default function Home() {
           : bet
       )
     );
-  }
 
-  function deleteBet(id: string) {
-    const confirmed = window.confirm("Vil du slette dette bet?");
+    const { error } = await supabase
+      .from("bets")
+      .update({ result })
+      .eq("id", id);
 
-    if (confirmed) {
-      setBets((current) => current.filter((bet) => bet.id !== id));
+    if (error) {
+      console.error(error);
+      setBets(previousBets);
+      alert(`Resultatet kunne ikke opdateres: ${error.message}`);
     }
   }
+
+  async function deleteBet(id: string) {
+    const confirmed = window.confirm("Vil du slette dette bet?");
+
+    if (!confirmed) return;
+
+    const previousBets = bets;
+    setBets((current) => current.filter((bet) => bet.id !== id));
+
+    const { error } = await supabase.from("bets").delete().eq("id", id);
+
+    if (error) {
+      console.error(error);
+      setBets(previousBets);
+      alert(`Bettet kunne ikke slettes: ${error.message}`);
+    }
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
   }
+
   return (
     <main className="min-h-screen bg-[#07090d] text-white">
       <div className="flex min-h-screen">
@@ -355,6 +412,18 @@ export default function Home() {
   </button>
 </div>
           </header>
+
+          {databaseError && (
+            <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+              {databaseError}
+            </div>
+          )}
+
+          {isLoadingBets && (
+            <div className="mb-6 rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
+              Henter dine bets...
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {stats.map((stat) => (
@@ -781,3 +850,5 @@ function QuickStat({
     </div>
   );
 }
+
+
