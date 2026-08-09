@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 
 type BetResult = "Pending" | "Win" | "Loss" | "Void";
 
@@ -364,9 +365,21 @@ export default function Home() {
           </h1>
 
           <nav className="space-y-2">
+  <Link
+    href="/"
+    className="block rounded-lg bg-emerald-500 px-4 py-3 text-sm font-medium text-black"
+  >
+    Dashboard
+  </Link>
+
+  <Link
+    href="/bets"
+    className="block rounded-lg px-4 py-3 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"
+  >
+    Bet Tracker
+  </Link>
+
   {[
-    "Dashboard",
-    "Bet Tracker",
     "EV Tools",
     "Tennis Lab",
     "MLB Lab",
@@ -374,14 +387,11 @@ export default function Home() {
     "CLV Engine",
     "Analytics",
     "Settings",
-  ].map((item, index) => (
+  ].map((item) => (
     <button
+      type="button"
       key={item}
-      className={`w-full rounded-lg px-4 py-3 text-left text-sm transition ${
-        index === 0
-          ? "bg-emerald-500 text-black"
-          : "text-zinc-400 hover:bg-white/5 hover:text-white"
-      }`}
+      className="w-full rounded-lg px-4 py-3 text-left text-sm text-zinc-500"
     >
       {item}
     </button>
