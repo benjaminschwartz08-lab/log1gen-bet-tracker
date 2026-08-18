@@ -309,7 +309,42 @@ export default function BetsPage() {
               </Link>
             </div>
           </header>
+<div className="mb-8 flex flex-wrap gap-2 rounded-xl border border-white/10 bg-[#10141c] p-2">
+  <Link
+    href="/bets"
+    className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-black"
+  >
+    Overview
+  </Link>
 
+  <Link
+    href="/bets/calendar"
+    className="rounded-lg px-4 py-2 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"
+  >
+    Calendar
+  </Link>
+
+  <button
+    type="button"
+    className="rounded-lg px-4 py-2 text-sm text-zinc-500"
+  >
+    Bets
+  </button>
+
+  <button
+    type="button"
+    className="rounded-lg px-4 py-2 text-sm text-zinc-500"
+  >
+    Results
+  </button>
+
+  <button
+    type="button"
+    className="rounded-lg px-4 py-2 text-sm text-zinc-500"
+  >
+    Bankroll
+  </button>
+</div>
           {errorMessage && (
             <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
               {errorMessage}
