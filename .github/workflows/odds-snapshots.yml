@@ -1,0 +1,24 @@
+name: EdgeBook odds snapshots
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */4 * * *"
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Capture odds snapshots
+        env:
+          EDGEBOOK_BASE_URL: ${{ secrets.EDGEBOOK_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -eu
+          if [ -z "$EDGEBOOK_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing EDGEBOOK_BASE_URL or CRON_SECRET repository secret."
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$EDGEBOOK_BASE_URL/api/cron/odds-snapshots"
