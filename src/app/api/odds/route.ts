@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { compareEventMarkets } from "@/lib/odds/comparison";
 
 const SPORTS: Record<string, string> = {
   basketball_nba: "NBA",
@@ -75,6 +76,17 @@ export async function GET(request: NextRequest) {
           })),
         })),
       })),
+      ...compareEventMarkets({
+        id: event.id, sport: event.sport_title, commenceTime: event.commence_time,
+        homeTeam: event.home_team, awayTeam: event.away_team,
+        bookmakers: event.bookmakers.map((bookmaker) => ({
+          key: bookmaker.key, name: bookmaker.title,
+          markets: bookmaker.markets.map((market) => ({
+            key: market.key,
+            outcomes: market.outcomes.map((outcome) => ({ name: outcome.name, odds: outcome.price, point: outcome.point ?? null })),
+          })),
+        })),
+      }),
     }));
 
     return NextResponse.json({
