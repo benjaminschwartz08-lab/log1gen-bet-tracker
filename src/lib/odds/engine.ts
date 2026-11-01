@@ -1,4 +1,11 @@
-export type OutcomeOdds = { outcome: string; bookmaker: string; odds: number };
+export type OutcomeOdds = {
+  outcome: string;
+  bookmaker: string;
+  odds: number;
+  eventId?: string;
+  marketKey?: string;
+  point?: number | null;
+};
 
 export type ValueOpportunity = {
   outcome: string;
@@ -9,7 +16,16 @@ export type ValueOpportunity = {
   fairProbability: number | null;
   evPercent: number;
   fairOdds: number;
+  eventId?: string;
+  marketKey?: string;
+  point?: number | null;
 };
+
+function validateProbability(value: number) {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error("Model-sandsynlighed skal være mellem 0 og 1.");
+  }
+}
 
 export function impliedProbability(decimalOdds: number): number {
   if (!Number.isFinite(decimalOdds) || decimalOdds <= 1) {
@@ -25,72 +41,91 @@ export function removeVig(odds: number[]): number[] {
   return implied.map((value) => value / total);
 }
 
-export function calculateExpectedValue(
-  modelProbability: number,
-  decimalOdds: number
-): number {
-  if (!Number.isFinite(modelProbability) || modelProbability < 0 || modelProbability > 1) {
-    throw new Error("Model-sandsynlighed skal være mellem 0 og 1.");
-  }
+export function calculateExpectedValue(modelProbability: number, decimalOdds: number): number {
+  validateProbability(modelProbability);
   return modelProbability * decimalOdds - 1;
 }
+
+const marketId = (item: OutcomeOdds) => [item.eventId ?? "manual", item.marketKey ?? "h2h", item.point ?? ""].join("|");
+const selectionId = (item: OutcomeOdds) => [marketId(item), item.outcome].join("|");
 
 export function findValueOpportunities(
   outcomes: OutcomeOdds[],
   modelProbabilities: Record<string, number>
 ): ValueOpportunity[] {
-  const groups = new Map<string, OutcomeOdds[]>();
+  const bookmakerMarkets = new Map<string, OutcomeOdds[]>();
   for (const item of outcomes) {
-    const group = groups.get(item.bookmaker) ?? [];
-    group.push(item);
-    groups.set(item.bookmaker, group);
+    if (!Number.isFinite(item.odds) || item.odds <= 1) continue;
+    const key = marketId(item) + "|" + item.bookmaker;
+    bookmakerMarkets.set(key, [...(bookmakerMarkets.get(key) ?? []), item]);
   }
 
-  const fairByOutcome = new Map<string, number>();
-  for (const group of groups.values()) {
+  const fairSums = new Map<string, { total: number; count: number }>();
+  for (const group of bookmakerMarkets.values()) {
+    if (group.length < 2) continue;
     const fair = removeVig(group.map((item) => item.odds));
     group.forEach((item, index) => {
-      const current = fairByOutcome.get(item.outcome);
-      // Average normalized probabilities across available bookmakers.
-      fairByOutcome.set(item.outcome, (current ?? 0) + fair[index] / groups.size);
+      const key = selectionId(item);
+      const current = fairSums.get(key) ?? { total: 0, count: 0 };
+      current.total += fair[index];
+      current.count += 1;
+      fairSums.set(key, current);
     });
   }
 
   return outcomes.flatMap((item) => {
-    const probability = modelProbabilities[item.outcome];
-    if (probability === undefined) return [];
-    const fairProbability = fairByOutcome.get(item.outcome) ?? null;
+    const probability = modelProbabilities[selectionId(item)] ?? modelProbabilities[item.outcome];
+    if (probability === undefined || !Number.isFinite(item.odds) || item.odds <= 1) return [];
+    validateProbability(probability);
+    const fairEntry = fairSums.get(selectionId(item));
+    const fairProbability = fairEntry && fairEntry.count ? fairEntry.total / fairEntry.count : null;
     return [{
-      outcome: item.outcome,
-      bookmaker: item.bookmaker,
-      odds: item.odds,
-      modelProbability: probability,
-      impliedProbability: impliedProbability(item.odds),
-      fairProbability,
-      evPercent: calculateExpectedValue(probability, item.odds) * 100,
+      outcome: item.outcome, bookmaker: item.bookmaker, odds: item.odds,
+      modelProbability: probability, impliedProbability: impliedProbability(item.odds),
+      fairProbability, evPercent: calculateExpectedValue(probability, item.odds) * 100,
       fairOdds: fairProbability && fairProbability > 0 ? 1 / fairProbability : 0,
+      eventId: item.eventId, marketKey: item.marketKey, point: item.point,
     }];
   }).sort((a, b) => b.evPercent - a.evPercent);
 }
 
 export function findArbitrage(outcomes: OutcomeOdds[]) {
-  const best = new Map<string, OutcomeOdds>();
+  const markets = new Map<string, OutcomeOdds[]>();
   for (const item of outcomes) {
     if (!Number.isFinite(item.odds) || item.odds <= 1) continue;
-    const current = best.get(item.outcome);
-    if (!current || item.odds > current.odds) best.set(item.outcome, item);
+    const key = marketId(item);
+    markets.set(key, [...(markets.get(key) ?? []), item]);
   }
-  const selections = [...best.values()];
-  if (selections.length < 2) return null;
-  const impliedTotal = selections.reduce((sum, item) => sum + 1 / item.odds, 0);
-  if (impliedTotal >= 1) return null;
-  const stakes = selections.map((item) => ({
-    ...item,
-    stakePercent: (1 / item.odds) / impliedTotal * 100,
-  }));
+
+  const opportunities = [...markets.entries()].flatMap(([key, market]) => {
+    const best = new Map<string, OutcomeOdds>();
+    for (const item of market) {
+      const current = best.get(item.outcome);
+      if (!current || item.odds > current.odds) best.set(item.outcome, item);
+    }
+    const selections = [...best.values()];
+    if (selections.length < 2) return [];
+    const impliedTotal = selections.reduce((sum, item) => sum + 1 / item.odds, 0);
+    if (impliedTotal >= 1) return [];
+    return [{
+      marketId: key, selections: selections.map((item) => ({
+        ...item, stakePercent: (1 / item.odds) / impliedTotal * 100,
+      })),
+      profitPercent: (1 / impliedTotal - 1) * 100, impliedTotal,
+    }];
+  });
+  return opportunities.length === 1 ? opportunities[0] : opportunities;
+}
+
+/** Positive CLV means the taken price was better than the closing market price. */
+export function calculateCLV(takenOdds: number, closingOdds: number): {
+  clvPercent: number; takenImpliedProbability: number; closingImpliedProbability: number;
+} {
+  const takenImpliedProbability = impliedProbability(takenOdds);
+  const closingImpliedProbability = impliedProbability(closingOdds);
   return {
-    selections: stakes,
-    profitPercent: (1 / impliedTotal - 1) * 100,
-    impliedTotal,
+    clvPercent: ((closingOdds / takenOdds) - 1) * 100,
+    takenImpliedProbability,
+    closingImpliedProbability,
   };
 }
