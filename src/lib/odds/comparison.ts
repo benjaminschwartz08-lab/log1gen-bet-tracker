@@ -10,7 +10,8 @@ export function compareEventMarkets(event: LiveEventForComparison) {
   for (const book of event.bookmakers) {
     for (const market of book.markets) {
       for (const outcome of market.outcomes) {
-        const marketId = market.key + "|" + (outcome.point ?? "");
+        const normalizedPoint = market.key === "spreads" && outcome.point != null ? Math.abs(outcome.point) : outcome.point ?? "";
+        const marketId = market.key + "|" + normalizedPoint;
         const selections = grouped.get(marketId) ?? new Map();
         const offers = selections.get(outcome.name) ?? [];
         offers.push({ bookmaker: book.name, odds: outcome.odds, point: outcome.point });
