@@ -124,7 +124,7 @@ export function calculateCLV(takenOdds: number, closingOdds: number): {
   const takenImpliedProbability = impliedProbability(takenOdds);
   const closingImpliedProbability = impliedProbability(closingOdds);
   return {
-    clvPercent: ((closingOdds / takenOdds) - 1) * 100,
+    clvPercent: ((takenOdds / closingOdds) - 1) * 100,
     takenImpliedProbability,
     closingImpliedProbability,
   };
