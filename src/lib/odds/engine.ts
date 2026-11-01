@@ -46,7 +46,10 @@ export function calculateExpectedValue(modelProbability: number, decimalOdds: nu
   return modelProbability * decimalOdds - 1;
 }
 
-const marketId = (item: OutcomeOdds) => [item.eventId ?? "manual", item.marketKey ?? "h2h", item.point ?? ""].join("|");
+const normalizedPoint = (item: OutcomeOdds) =>
+  item.marketKey === "spreads" && item.point != null ? Math.abs(item.point) : item.point ?? "";
+const marketId = (item: OutcomeOdds) =>
+  [item.eventId ?? "manual", item.marketKey ?? "h2h", normalizedPoint(item)].join("|");
 const selectionId = (item: OutcomeOdds) => [marketId(item), item.outcome].join("|");
 
 export function findValueOpportunities(
