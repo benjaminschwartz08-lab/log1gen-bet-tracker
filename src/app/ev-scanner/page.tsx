@@ -9,6 +9,7 @@ type Result = {
 type LiveEvent = {
   id: string; sport: string; commenceTime: string; homeTeam: string; awayTeam: string;
   bookmakers: Array<{ key: string; name: string; lastUpdate: string; markets: Array<{ key: string; outcomes: Array<{ name: string; odds: number; point: number | null }> }> }>;
+  bestMarkets?: Array<{ marketKey: string; point: string | null; outcomes: Array<{ name: string; offers: Array<{ bookmaker: string; odds: number; point: number | null }>; best: { bookmaker: string; odds: number; point: number | null } }>; arbitrage: null | { profitPercent: number; selections: Array<{ outcome: string; bookmaker: string; odds: number; stakePercent: number }> } }>;
 };
 type LiveResponse = { configured: boolean; message?: string; error?: string; events: LiveEvent[]; quota?: { remaining: string | null; used: string | null } };
 
@@ -161,6 +162,20 @@ export default function EVScannerPage() {
             <div className="space-y-4">
               {live.events.map(item => <article key={item.id} className="rounded-xl border border-white/10 p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="font-semibold">{item.homeTeam} <span className="text-zinc-500">vs.</span> {item.awayTeam}</h3><p className="mt-1 text-xs text-zinc-500">{new Date(item.commenceTime).toLocaleString("da-DK")}</p></div><span className="text-xs text-zinc-500">{item.bookmakers.length} bookmakere</span></div>
+                {item.bestMarkets && item.bestMarkets.length > 0 && <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold text-emerald-300">Bedste odds på tværs af bookmakere</p><span className="text-xs text-zinc-500">Højeste tilgængelige pris pr. udfald</span></div>
+                  {item.bestMarkets.map((market, index) => <div key={market.marketKey + String(market.point) + index} className="mb-4 last:mb-0">
+                    <p className="mb-2 text-xs uppercase tracking-wide text-zinc-400">{marketLabel(market.marketKey)}{market.point ? ` · linje ${market.point}` : ""}</p>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {market.outcomes.map(outcome => <div key={outcome.name} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                        <p className="text-xs text-zinc-400">{outcome.name}</p><p className="mt-1 text-lg font-bold text-white">{outcome.best.odds.toFixed(2)}</p>
+                        <p className="text-xs text-emerald-400">{outcome.best.bookmaker}</p>
+                        <p className="mt-2 text-[10px] text-zinc-500">{outcome.offers.length} priser sammenlignet</p>
+                      </div>)}
+                    </div>
+                    {market.arbitrage && <p className="mt-2 text-xs font-semibold text-emerald-300">Mulig arbitrage: +{market.arbitrage.profitPercent.toFixed(2)}% · kontrollér limits og at markedet matcher præcist.</p>}
+                  </div>)}
+                </div>}
                 {item.bookmakers.map(book => <div key={book.key} className="mt-3 border-t border-white/5 pt-3">
                   <p className="mb-2 text-xs font-medium text-emerald-400">{book.name}</p>
                   {book.markets.map(market => <div key={market.key} className="mb-2">
