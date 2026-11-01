@@ -379,20 +379,14 @@ export default function Home() {
     Bet Tracker
   </Link>
 
-  {[
-    "EV Tools",
-    "Tennis Lab",
-    "MLB Lab",
-    "NBA Props",
-    "CLV Engine",
-    "Analytics",
-    "Settings",
-  ].map((item) => (
-    <button
-      type="button"
-      key={item}
-      className="w-full rounded-lg px-4 py-3 text-left text-sm text-zinc-500"
-    >
+  <Link
+    href="/ev-scanner"
+    className="block rounded-lg px-4 py-3 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"
+  >
+    +EV Scanner
+  </Link>
+  {["Tennis Lab", "MLB Lab", "NBA Props", "CLV Engine", "Analytics", "Settings"].map((item) => (
+    <button type="button" key={item} className="w-full rounded-lg px-4 py-3 text-left text-sm text-zinc-500">
       {item}
     </button>
   ))}
