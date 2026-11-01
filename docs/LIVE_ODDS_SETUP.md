@@ -44,3 +44,30 @@ The server route also has a provider key for ATP French Open tennis, but tennis 
 ## Supabase odds history migration
 
 A starter schema is included at `supabase/migrations/202611010001_odds_snapshots.sql`. Run it in the Supabase SQL Editor to create the historical snapshot table and authenticated read policy. Browser-side inserts are deliberately disabled; a future scheduled/server-side importer should use a server-only Supabase service-role key.
+
+
+## Automatic odds snapshots
+
+The protected ingestion endpoint is `GET /api/cron/odds-snapshots`. It fetches the configured provider sports and inserts each bookmaker/outcome price into `public.odds_snapshots`. It requires all of these server-side Netlify environment variables:
+
+- `ODDS_API_KEY`: The Odds API key.
+- `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL.
+- `SUPABASE_SERVICE_ROLE_KEY`: Supabase service-role key. Keep this secret; never use a `NEXT_PUBLIC_` prefix.
+- `CRON_SECRET`: a long random secret used to authorize the scheduled request.
+
+The endpoint requires the exact header `Authorization: Bearer <CRON_SECRET>`. It rejects unauthenticated calls and writes with the service-role key only on the server. It can also capture one sport at a time using `?sport=basketball_nba`.
+
+### GitHub Actions scheduler
+
+The workflow `.github/workflows/odds-snapshots.yml` is configured to run every four hours and can also be started manually. Add these repository Actions secrets under GitHub → Settings → Secrets and variables → Actions:
+
+- `EDGEBOOK_BASE_URL`: the deployed site origin, e.g. `https://your-site.netlify.app` (no trailing slash).
+- `CRON_SECRET`: exactly the same value as the Netlify environment variable.
+
+Scheduled GitHub Actions workflows run from the repository's default branch. The workflow will therefore start on its schedule after this feature branch is merged into the default branch. You can use workflow_dispatch for a manual test once the workflow exists on the branch. Add the Netlify variables and run both SQL migrations before testing ingestion.
+
+### Read odds history
+
+Authenticated users can request `GET /api/odds/history?eventId=<provider-event-id>`. Optional filters are `market`, `outcome` and `limit` (maximum 1000). The route uses the existing Supabase session client and the table's authenticated read policy.
+
+The ingestion schedule currently makes one provider request per supported sport per run. At a four-hour interval that is up to six requests per run, so check the provider's quota and disable or reduce the schedule if your plan cannot support it. Historical capture begins only after the migrations, environment variables, deployment and scheduler are configured; it does not backfill earlier odds.
