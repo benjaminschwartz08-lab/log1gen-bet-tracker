@@ -30,3 +30,7 @@ The route requests h2h, spreads and totals markets in decimal odds for the EU re
 - This is a first feed integration, not a complete all-sports feed. Additional leagues and sports should be added only when the provider confirms their sport keys and market coverage.
 - The current scanner lets you transfer a selected live price into the manual EV calculator. Automated model probabilities, cross-book best-price aggregation, persisted odds history, alerts and CLV are separate next steps.
 - Check the bookmaker's current price and market rules before placing a bet. Odds can change between refreshes.
+
+## Supabase odds history migration
+
+A starter schema is included at `supabase/migrations/202611010001_odds_snapshots.sql`. Run it in the Supabase SQL Editor to create the historical snapshot table and authenticated read policy. Browser-side inserts are deliberately disabled; a future scheduled/server-side importer should use a server-only Supabase service-role key.
