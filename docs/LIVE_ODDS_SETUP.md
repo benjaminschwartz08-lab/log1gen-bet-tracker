@@ -71,3 +71,8 @@ Scheduled GitHub Actions workflows run from the repository's default branch. The
 Authenticated users can request `GET /api/odds/history?eventId=<provider-event-id>`. Optional filters are `market`, `outcome` and `limit` (maximum 1000). The route uses the existing Supabase session client and the table's authenticated read policy.
 
 The ingestion schedule currently makes one provider request per supported sport per run. At a four-hour interval that is up to six requests per run, so check the provider's quota and disable or reduce the schedule if your plan cannot support it. Historical capture begins only after the migrations, environment variables, deployment and scheduler are configured; it does not backfill earlier odds.
+
+
+## Bet metadata and CLV preparation
+
+A migration is included at `supabase/migrations/202611020001_bet_clv_fields.sql`. Run it after the odds snapshot migrations. It adds optional provider event/market/selection identifiers and closing-odds fields to existing bets, plus indexes for matching bets to captured odds. Existing bets remain valid because all new columns are nullable. The migration prepares the database for automated CLV matching; it does not populate closing odds by itself. Bets need reliable event, market and selection identifiers before an automated matcher can safely attach the correct closing price.
