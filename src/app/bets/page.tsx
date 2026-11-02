@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { calculateCLV } from "@/lib/odds/engine";
 
 type BetResult = "Pending" | "Win" | "Loss" | "Void";
 
@@ -17,6 +18,7 @@ type Bet = {
   stake: number;
   result: BetResult;
   createdAt: string;
+  closingOdds: number | null;
 };
 
 function calculateProfit(bet: Bet) {
@@ -80,7 +82,7 @@ export default function BetsPage() {
       const { data, error } = await supabase
         .from("bets")
         .select(
-          "id, sport, event, market, bookmaker, odds, stake, result, created_at"
+          "id, sport, event, market, bookmaker, odds, stake, result, closing_odds, created_at"
         )
         .order("created_at", { ascending: false });
 
@@ -102,6 +104,7 @@ export default function BetsPage() {
             stake: Number(bet.stake),
             result: bet.result as BetResult,
             createdAt: bet.created_at,
+            closingOdds: bet.closing_odds == null ? null : Number(bet.closing_odds),
           }))
         );
       }
@@ -195,6 +198,31 @@ export default function BetsPage() {
       console.error(error);
       setBets(previousBets);
       alert(`Resultatet kunne ikke opdateres: ${error.message}`);
+    }
+  }
+
+  async function updateClosingOdds(id: string, currentOdds: number | null) {
+    const raw = window.prompt(
+      "Indtast closing odds (decimal, fx 1.92). Lad feltet være tomt for at fjerne værdien.",
+      currentOdds == null ? "" : String(currentOdds)
+    );
+    if (raw === null) return;
+    const closingOdds = raw.trim() === "" ? null : Number(raw.replace(",", "."));
+    if (closingOdds !== null && (!Number.isFinite(closingOdds) || closingOdds <= 1)) {
+      alert("Closing odds skal være et decimaltal større end 1.");
+      return;
+    }
+
+    const previousBets = bets;
+    setBets((current) => current.map((bet) => bet.id === id ? { ...bet, closingOdds } : bet));
+    const { error } = await supabase
+      .from("bets")
+      .update({ closing_odds: closingOdds, closing_captured_at: closingOdds == null ? null : new Date().toISOString() })
+      .eq("id", id);
+    if (error) {
+      console.error(error);
+      setBets(previousBets);
+      alert(`Closing odds kunne ikke gemmes: ${error.message}. Kontrollér, at CLV-migrationen er kørt i Supabase.`);
     }
   }
 
@@ -455,6 +483,8 @@ export default function BetsPage() {
                         Bookmaker
                       </th>
                       <th className="px-5 py-4 font-medium">Odds</th>
+                      <th className="px-5 py-4 font-medium">Closing</th>
+                      <th className="px-5 py-4 font-medium">CLV</th>
                       <th className="px-5 py-4 font-medium">Stake</th>
                       <th className="px-5 py-4 font-medium">
                         Resultat
@@ -492,6 +522,15 @@ export default function BetsPage() {
                           </td>
                           <td className="px-5 py-4">
                             {bet.odds.toFixed(2)}
+                          </td>
+                          <td className="px-5 py-4 text-zinc-300">
+                            {bet.closingOdds == null ? "—" : bet.closingOdds.toFixed(2)}
+                          </td>
+                          <td className="px-5 py-4 font-semibold">
+                            {bet.closingOdds == null ? <span className="text-zinc-600">Afventer</span> : (() => {
+                              const clv = calculateCLV(bet.odds, bet.closingOdds).clvPercent;
+                              return <span className={clv > 0 ? "text-emerald-400" : clv < 0 ? "text-red-400" : "text-zinc-400"}>{clv > 0 ? "+" : ""}{clv.toFixed(2)}%</span>;
+                            })()}
                           </td>
                           <td className="px-5 py-4">
                             {formatMoney(bet.stake)}
@@ -533,6 +572,14 @@ export default function BetsPage() {
                             {formatMoney(profit)}
                           </td>
                           <td className="px-5 py-4">
+                            <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => updateClosingOdds(bet.id, bet.closingOdds)}
+                              className="rounded-lg bg-blue-500/10 px-3 py-2 text-xs text-blue-300 transition hover:bg-blue-500/20"
+                            >
+                              {bet.closingOdds == null ? "Tilføj CL" : "Ret CL"}
+                            </button>
                             <button
                               type="button"
                               onClick={() => deleteBet(bet.id)}
@@ -540,6 +587,7 @@ export default function BetsPage() {
                             >
                               Slet
                             </button>
+                            </div>
                           </td>
                         </tr>
                       );
